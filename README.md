@@ -16,3 +16,12 @@ python3 play_game.py
 
 ## Verify the code
 python3 -m unittest -v test_smoke.py
+
+## Where to start
+Read README.md first to understand the project goal and how it is intended to be used
+Read road_agent.py next since this tells you the rules of the game
+Read missions.py
+Read MAPO
+Run the smoke test
+Train a model
+Compare models
