@@ -1,0 +1,254 @@
+import random
+import itertools
+from collections import Counter
+from typing import List, Tuple, Optional, Dict
+
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+
+def evaluate_cup_utility(cup: List[int], goal_type: str, locked: List[int], target_val: Optional[int]) -> int:
+    counts = Counter(cup)
+    locked_counts = Counter(locked)
+
+    if goal_type.startswith("Three ") or goal_type == "Four of a Kind":
+        if target_val is None:
+            return counts.most_common(1)[0][1] if counts else 0
+        needed = (3 if goal_type.startswith("Three ") else 4) - locked_counts[target_val]
+        return min(max(0, needed), counts[target_val])
+
+    elif goal_type == "Small Straight":
+        unique_locked = set(locked)
+        straights = [{1, 2, 3, 4}, {2, 3, 4, 5}, {3, 4, 5, 6}]
+        best_utility = 0
+        for s in straights:
+            missing = s - unique_locked
+            utility = len(set(cup).intersection(missing))
+            if utility > best_utility:
+                best_utility = utility
+        return best_utility
+    return 0
+
+
+# --- СТРАТЕГИИ ПОВЕДЕНИЯ ИГРОКОВ ---
+
+class BotStrategy:
+    def choose_die(self, player: 'Player', cup: List[int], all_players: List['Player']) -> int: pass
+
+    def evaluate_pass(self, player: 'Player', cup: List[int], receiver: 'Player') -> float: pass
+
+    def wants_reroll(self, player: 'Player', cup: List[int]) -> bool: pass
+
+
+class CooperativeBot(BotStrategy):
+    def wants_reroll(self, player, cup):
+        return evaluate_cup_utility(cup, player.goal_type, player.locked, player.target_val) == 0
+
+    def choose_die(self, player, cup, all_players):
+        if evaluate_cup_utility(cup, player.goal_type, player.locked, player.target_val) > 0:
+            if player.goal_type == "Small Straight":
+                for t in [2, 3, 4, 5, 1, 6]:
+                    if t in cup and t not in set(player.locked): return t
+            else:
+                if player.target_val in cup: return player.target_val
+
+        best_fallback, min_need = cup[0], float('inf')
+        for die in set(cup):
+            team_need = sum(evaluate_cup_utility([die], p.goal_type, p.locked, p.target_val)
+                            for p in all_players if p.id != player.id)
+            if team_need < min_need:
+                min_need, best_fallback = team_need, die
+        return best_fallback
+
+    def evaluate_pass(self, player, cup, receiver):
+        return evaluate_cup_utility(cup, receiver.goal_type, receiver.locked, receiver.target_val)
+
+
+class SelfishBot(BotStrategy):
+    def wants_reroll(self, player, cup):
+        return evaluate_cup_utility(cup, player.goal_type, player.locked, player.target_val) == 0
+
+    def choose_die(self, player, cup, all_players):
+        if evaluate_cup_utility(cup, player.goal_type, player.locked, player.target_val) > 0:
+            if player.goal_type.startswith("Three ") or player.goal_type == "Four of a Kind":
+                if player.target_val in cup: return player.target_val
+            elif player.goal_type == "Small Straight":
+                for t in [2, 3, 4, 5, 1, 6]:
+                    if t in cup and t not in player.locked: return t
+        return random.choice(cup)
+
+    def evaluate_pass(self, player, cup, receiver):
+        return random.random()
+
+
+class SaboteurBot(BotStrategy):
+    def wants_reroll(self, player, cup):
+        return sum(evaluate_cup_utility(cup, p.goal_type, p.locked, p.target_val) for p in player.all_players) > 2
+
+    def choose_die(self, player, cup, all_players):
+        worst_die, max_damage = cup[0], -1
+        for die in set(cup):
+            damage = sum(evaluate_cup_utility([die], p.goal_type, p.locked, p.target_val)
+                         for p in all_players if p.id != player.id)
+            if damage > max_damage:
+                max_damage, worst_die = damage, die
+        return worst_die
+
+    def evaluate_pass(self, player, cup, receiver):
+        return -evaluate_cup_utility(cup, receiver.goal_type, receiver.locked, receiver.target_val)
+
+
+class RandomBot(BotStrategy):
+    def wants_reroll(self, player, cup): return random.choice([True, False])
+
+    def choose_die(self, player, cup, all_players): return random.choice(cup)
+
+    def evaluate_pass(self, player, cup, receiver): return random.random()
+
+
+# --- СУЩНОСТЬ ИГРОКА ---
+
+class Player:
+    def __init__(self, player_id: int, goal_type: str, strategy_name: str):
+        self.id = player_id
+        self.goal_type = goal_type
+        self.locked: List[int] = []
+        self.target_val: Optional[int] = int(goal_type.split()[1][0]) if goal_type.startswith("Three ") else None
+
+        strategies = {"coop": CooperativeBot(), "self": SelfishBot(), "sab": SaboteurBot(), "rnd": RandomBot()}
+        self.strategy = strategies.get(strategy_name, CooperativeBot())
+        self.all_players = []
+
+    def check_victory(self) -> bool:
+        counts = Counter(self.locked)
+        if self.goal_type.startswith("Three "):
+            return counts[self.target_val] >= 3
+        elif self.goal_type == "Four of a Kind":
+            return any(c >= 4 for c in counts.values())
+        elif self.goal_type == "Small Straight":
+            return any(s.issubset(set(self.locked)) for s in [{1, 2, 3, 4}, {2, 3, 4, 5}, {3, 4, 5, 6}])
+        return False
+
+
+# --- ДВИЖОК ОДНОЙ ИГРЫ ---
+
+def run_single_game(playstyles: List[str], assigned_goals: Tuple[str, ...], derangements: List[Tuple]) -> bool:
+    num_players = len(playstyles)
+    players = [Player(i, assigned_goals[i], playstyles[i]) for i in range(num_players)]
+    for p in players: p.all_players = players
+
+    cups = [[random.randint(1, 6) for _ in range(5)] for _ in range(num_players)]
+
+    for p in players:
+        if p.goal_type == "Four of a Kind" and p.target_val is None:
+            counts = Counter(cups[p.id])
+            p.target_val = counts.most_common(1)[0][0] if counts else 1
+
+        if p.strategy.wants_reroll(p, cups[p.id]):
+            cups[p.id] = [random.randint(1, 6) for _ in range(5)]
+            if p.goal_type == "Four of a Kind":
+                p.target_val = Counter(cups[p.id]).most_common(1)[0][0]
+
+    for _ in range(5):
+        for p in players:
+            die = p.strategy.choose_die(p, cups[p.id], players)
+            p.locked.append(die)
+            cups[p.id].remove(die)
+
+        best_perm, best_score = None, -float('inf')
+        for perm in derangements:
+            score = sum(
+                players[i].strategy.evaluate_pass(players[i], cups[i], players[perm[i]]) for i in range(num_players))
+            if score > best_score:
+                best_score, best_perm = score, perm
+
+        cups = [cups[giver_idx] for giver_idx in best_perm]
+
+    return all(p.check_victory() for p in players)
+
+
+# --- АНАЛИЗАТОР КОМБИНАЦИЙ И ВЫВОД ТАБЛИЦЫ ---
+
+def shorten_goal(goal: str) -> str:
+    """Сокращает название цели для форматирования таблицы."""
+    if goal.startswith("Three "): return f"3x{goal.split()[1][0]}"
+    if goal == "Small Straight": return "SmStr"
+    if goal == "Four of a Kind": return "4xKind"
+    return goal
+
+
+def run_goal_combination_analysis(num_players: int = 4, iterations_per_combo: int = 300):
+    goals = [
+        "Three 1s", "Three 2s", "Three 3s",
+        "Three 4s", "Three 5s", "Three 6s",
+        "Small Straight", "Four of a Kind"
+    ]
+
+    uniform_teams = {
+        "Cooperative": ["coop"] * num_players,
+        "Egoistic": ["self"] * num_players,
+        "Random": ["rnd"] * num_players,
+        "Saboteur": ["sab"] * num_players
+    }
+
+    goal_combinations = list(itertools.combinations(goals, num_players))
+    derangements = [p for p in itertools.permutations(range(num_players)) if all(p[i] != i for i in range(num_players))]
+
+    combo_results = []
+    overall_team_wins = {team_name: 0 for team_name in uniform_teams}
+    total_games_per_team = len(goal_combinations) * iterations_per_combo
+
+    print(f"=== АНАЛИЗ КОМБИНАЦИЙ СЕКРЕТНЫХ ЦЕЛЕЙ ({num_players} ИГРОКОВ) ===")
+    print(f"Всего комбинаций целей: {len(goal_combinations)}")
+    print(f"Итераций на комбинацию: {iterations_per_combo} (Всего игр на состав: {total_games_per_team:,})\n")
+
+    for combo in goal_combinations:
+        combo_row = {"combo_str": ", ".join(shorten_goal(g) for g in combo), "rates": {}}
+
+        for team_name, playstyles in uniform_teams.items():
+            wins = 0
+            for _ in range(iterations_per_combo):
+                shuffled_goals = list(combo)
+                random.shuffle(shuffled_goals)
+
+                if run_single_game(playstyles, tuple(shuffled_goals), derangements):
+                    wins += 1
+
+            win_rate = (wins / iterations_per_combo) * 100
+            combo_row["rates"][team_name] = win_rate
+            overall_team_wins[team_name] += wins
+
+        combo_results.append(combo_row)
+
+    # --- ВЫВОД ТАБЛИЦЫ ---
+    max_combo_len = max(len(row["combo_str"]) for row in combo_results)
+    combo_col_width = max(max_combo_len + 2, 32)
+
+    header = f"{'Goal Combination Variant':<{combo_col_width}} | {'All Coop':<10} | {'All Self':<10} | {'All Rnd':<10} | {'All Sab':<10}"
+    divider = "-" * len(header)
+
+    print(header)
+    print(divider)
+
+    for row in combo_results:
+        c_str = row["combo_str"]
+        c_rate = row["rates"]["Cooperative"]
+        s_rate = row["rates"]["Egoistic"]
+        r_rate = row["rates"]["Random"]
+        b_rate = row["rates"]["Saboteur"]
+        print(f"{c_str:<{combo_col_width}} | {c_rate:>8.2f}% | {s_rate:>8.2f}% | {r_rate:>8.2f}% | {b_rate:>8.2f}%")
+
+    print(divider)
+
+    ov_c = (overall_team_wins["Cooperative"] / total_games_per_team) * 100
+    ov_s = (overall_team_wins["Egoistic"] / total_games_per_team) * 100
+    ov_r = (overall_team_wins["Random"] / total_games_per_team) * 100
+    ov_b = (overall_team_wins["Saboteur"] / total_games_per_team) * 100
+
+    print(
+        f"{'OVERALL TEAM WIN RATE':<{combo_col_width}} | {ov_c:>8.2f}% | {ov_s:>8.2f}% | {ov_r:>8.2f}% | {ov_b:>8.2f}%")
+    print(divider)
+
+
+if __name__ == "__main__":
+    # Работает одинаково для 4 и 5 игроков (достаточно изменить num_players)
+    run_goal_combination_analysis(num_players=3, iterations_per_combo=10000)
