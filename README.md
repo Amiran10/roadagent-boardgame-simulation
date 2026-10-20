@@ -12,20 +12,20 @@ This repository combines:
 - a terminal interface for human play
 - smoke tests for validation
 
-The emphasis is on learning under partial observability, action legality, and team coordination in a turn-based board-game setting.
+The project focuses on learning under partial observability, action legality, and team coordination in a turn-based board-game setting.
 
-## Why this project is interesting
+## Why this project is relevant
 
 - Multi-agent reinforcement learning in a structured game environment
 - Hidden information and asymmetric player observations
 - Centralized training, decentralized execution (CTDE)
 - Legal action masking during policy optimization
 - Mission-conditioned gameplay and team objectives
-- Fully custom environment design instead of a generic toy benchmark
+- Custom environment design instead of a generic toy benchmark
 
-## Core project idea
+## Core idea
 
-Each player has a private goal, partial information about the board state, and a limited action space. The trained system learns to coordinate in a hidden-information setting while respecting game rules and mission constraints.
+Each player has a private goal, partial information about the board state, and a limited action space. The trained policy learns to coordinate in a hidden-information setting while respecting game rules and mission constraints.
 
 ## Key files
 
@@ -36,7 +36,7 @@ Each player has a private goal, partial information about the board state, and a
 - `benchmark.py` — comparison between MAPPO and a legal baseline strategy
 - `play_game.py` — terminal-based human gameplay
 - `test_smoke.py` — smoke tests for correctness and basic environment validation
-- `LICENSE` — repository license
+- `LICENSE` — project license
 
 ## Repository structure
 
@@ -71,7 +71,6 @@ pip install -r requirements.txt
 
 ## Requirements
 
-The project uses:
 - Python 3.10+
 - NumPy
 - PyTorch
@@ -104,7 +103,7 @@ python benchmark.py --games 2000 --models-dir models --output reports/mappo_comp
 
 ## Missions
 
-The repository currently includes three mission rules:
+The repository includes three mission rules:
 
 1. `standard` — all secret goals must be met
 2. `minimum_total` — each player must lock at least 15 total points, in addition to their goal
@@ -142,8 +141,8 @@ This allows direct comparison of win rate, mission completion rate, and goal com
 - refined mission design and game balancing
 - policy training with stronger curriculum learning
 - richer opponent strategies
-- visual simulator / dashboard
-- more benchmark reporting and ablation studies
+- visual simulator or dashboard
+- expanded benchmark reporting and ablation studies
 
 ## License
 
@@ -151,4 +150,4 @@ This project is licensed under the MIT license. See `LICENSE` for details.
 
 ## Contact
 
-For questions or collaboration opportunities, please reach out through the repository owner profile on GitHub.
+For questions or collaboration opportunities, please open an issue in the repository.
