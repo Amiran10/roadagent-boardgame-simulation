@@ -1,0 +1,28 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Editor / IDE metadata
+.vscode/
+.idea/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Local model artifacts
+models/
+reports/
+*.pt
+*.pth
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/

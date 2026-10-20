@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roadagent-boardgame-simulation"
+version = "0.1.0"
+description = "Multi-agent boardgame simulation with recurrent MAPPO training and mission-based gameplay."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26.0",
+    "torch>=2.2.0",
+]
+
+[tool.setuptools]
+py-modules = ["road_agent", "missions", "mappo", "train_mappo", "benchmark", "play_game", "test_smoke"]
